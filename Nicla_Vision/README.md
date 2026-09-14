@@ -1,0 +1,2 @@
+
+Antes de programar se debe actualizar el firmware, para ello usé Arduino IDE en Mac. Luego para programar use Arduino Web Editor. Debes incluir los archivos que están dentro de la carpeta third_party autoria y propiedad de Arduino.

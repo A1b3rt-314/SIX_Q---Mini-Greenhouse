@@ -1,0 +1,9 @@
+name: "SIX_Q - Mini Greenhouse"
+description: A small, automated and reproducible cultivation system built around an Arduino UNO Q. The goal is to show a functional prototype.
+ports:
+- 5000
+bricks:
+- arduino:web_ui: {}
+- arduino:dbstorage_sqlstore: {} 
+
+icon: 🌱

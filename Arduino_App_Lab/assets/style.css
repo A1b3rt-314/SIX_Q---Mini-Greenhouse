@@ -1,0 +1,1825 @@
+/*
+SPDX-FileCopyrightText: 2026 Alberto Prestes
+SPDX-License-Identifier: 0BSD
+
+SIX_Q - Local Dashboard
+
+Visual criteria:
+
+- fit a notebook viewport with minimum unnecessary scrolling;
+- preserve the dark technical/editorial identity;
+- use horizontal space before vertical space;
+- let the image keep its real aspect ratio;
+- never reserve space for hidden elements;
+- make primary environmental values easy to read;
+- use one continuous operating rail for WATER and LIGHT;
+- the rail represents the selected request or program;
+- STATE represents what the hardware is actually doing;
+- the browser requests. UNO Q decides.
+*/
+
+
+:root {
+
+  --background:
+    #111411;
+
+  --surface:
+    #181c18;
+
+  --surface-soft:
+    #202520;
+
+  --line:
+    #343b34;
+
+  --line-soft:
+    #292f29;
+
+  --text:
+    #edf0eb;
+
+  --muted:
+    #949d93;
+
+  --muted-dark:
+    #6c756c;
+
+  --accent:
+    #b8d36a;
+
+  --accent-soft:
+    rgba(
+      184,
+      211,
+      106,
+      0.18
+    );
+
+  --danger:
+    #d87868;
+
+  --radius:
+    16px;
+}
+
+
+/* ============================================================
+   Base
+   ============================================================ */
+
+* {
+
+  box-sizing:
+    border-box;
+}
+
+
+[hidden] {
+
+  display:
+    none !important;
+}
+
+
+html,
+body {
+
+  margin:
+    0;
+
+  min-height:
+    100%;
+
+  background:
+    var(--background);
+
+  color:
+    var(--text);
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+
+body {
+
+  overflow-x:
+    hidden;
+}
+
+
+button {
+
+  font:
+    inherit;
+}
+
+
+/* ============================================================
+   Dashboard shell
+   ============================================================ */
+
+.dashboard {
+
+  width:
+    min(
+      1400px,
+      calc(
+        100vw - 30px
+      )
+    );
+
+  min-height:
+    100vh;
+
+  margin:
+    0 auto;
+
+  padding:
+    22px 0 14px;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    12px;
+}
+
+
+/* ============================================================
+   Header
+   ============================================================ */
+
+.topbar {
+
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    center;
+
+  min-height:
+    70px;
+}
+
+
+.brand h1 {
+
+  margin:
+    2px 0 0;
+
+  font-size:
+    clamp(
+      2.6rem,
+      5vw,
+      4.8rem
+    );
+
+  line-height:
+    0.82;
+
+  letter-spacing:
+    -0.075em;
+}
+
+
+.eyebrow,
+.label,
+.actual-label {
+
+  color:
+    var(--muted);
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size:
+    0.67rem;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.14em;
+}
+
+
+.eyebrow {
+
+  margin:
+    0;
+}
+
+
+.connection {
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    8px;
+
+  color:
+    var(--muted);
+
+  font-size:
+    0.78rem;
+}
+
+
+.connection-dot {
+
+  width:
+    8px;
+
+  height:
+    8px;
+
+  border-radius:
+    50%;
+
+  background:
+    var(--muted);
+}
+
+
+.connection-dot.online {
+
+  background:
+    var(--accent);
+
+  box-shadow:
+    0 0 14px
+    rgba(
+      184,
+      211,
+      106,
+      0.35
+    );
+}
+
+
+.connection-dot.offline {
+
+  background:
+    var(--danger);
+}
+
+
+/* ============================================================
+   Main image + system column
+   ============================================================ */
+
+.main-grid {
+
+  display:
+    grid;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    )
+    minmax(
+      215px,
+      255px
+    );
+
+  gap:
+    12px;
+
+  align-items:
+    stretch;
+}
+
+
+.image-panel,
+.metric-card,
+.capture-status-card,
+.control-panel {
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius:
+    var(--radius);
+
+  background:
+    var(--surface);
+}
+
+
+.image-panel {
+
+  padding:
+    14px;
+
+  min-width:
+    0;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+}
+
+
+.panel-heading {
+
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    center;
+
+  gap:
+    16px;
+
+  margin-bottom:
+    10px;
+}
+
+
+.subvalue {
+
+  display:
+    block;
+
+  margin-top:
+    3px;
+
+  color:
+    var(--muted);
+
+  font-size:
+    0.72rem;
+}
+
+
+/* ============================================================
+   Image
+
+   The mosaic already has a 4:3 proportion: 1600 x 1200.
+
+   The image determines its own height.
+   There is no artificial black frame around it.
+   ============================================================ */
+
+.image-holder {
+
+  position:
+    relative;
+
+  width:
+    100%;
+
+  display:
+    block;
+
+  overflow:
+    hidden;
+
+  border-radius:
+    10px;
+}
+
+
+.image-holder img {
+
+  display:
+    block;
+
+  width:
+    100%;
+
+  height:
+    auto;
+
+  border-radius:
+    10px;
+}
+
+
+.image-placeholder {
+
+  width:
+    100%;
+
+  min-height:
+    280px;
+
+  display:
+    grid;
+
+  place-items:
+    center;
+
+  border:
+    1px dashed
+    var(--line-soft);
+
+  border-radius:
+    10px;
+
+  color:
+    var(--muted-dark);
+
+  font-size:
+    0.8rem;
+}
+
+
+/* ============================================================
+   Right column
+   ============================================================ */
+
+.system-column {
+
+  display:
+    grid;
+
+  grid-template-rows:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    )
+    auto;
+
+  gap:
+    8px;
+}
+
+
+.metric-card {
+
+  padding:
+    13px 14px;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  justify-content:
+    space-between;
+
+  min-height:
+    76px;
+}
+
+
+/* ============================================================
+   Main numbers
+
+   Only the numerical scale is increased.
+   The card geometry remains compact.
+   ============================================================ */
+
+.metric-value {
+
+  display:
+    flex;
+
+  align-items:
+    baseline;
+
+  gap:
+    5px;
+
+  font-size:
+    clamp(
+      3.2rem,
+      4.6vw,
+      4.8rem
+    );
+
+  font-weight:
+    700;
+
+  line-height:
+    0.9;
+
+  letter-spacing:
+    -0.065em;
+}
+
+
+.metric-unit {
+
+  color:
+    var(--muted);
+
+  font-size:
+    1rem;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0;
+}
+
+
+.clock {
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size:
+    clamp(
+      2.6rem,
+      3.7vw,
+      3.8rem
+    );
+
+  font-weight:
+    700;
+
+  line-height:
+    0.95;
+
+  letter-spacing:
+    -0.055em;
+}
+
+
+/* ============================================================
+   Vision status
+   ============================================================ */
+
+.capture-status-card {
+
+  padding:
+    12px 14px;
+}
+
+
+.status-message {
+
+  margin-top:
+    7px;
+
+  font-size:
+    0.78rem;
+
+  line-height:
+    1.35;
+}
+
+
+.small-note {
+
+  color:
+    var(--muted);
+
+  font-size:
+    0.67rem;
+
+  line-height:
+    1.4;
+}
+
+
+.capture-status-card
+.small-note {
+
+  margin-top:
+    6px;
+}
+
+
+/* ============================================================
+   Image actions
+
+   CAPTURE NOW and ANALYZE WITH AI are primary image actions.
+   They are deliberately larger than the previous capture button
+   so they remain obvious without adding another panel.
+   ============================================================ */
+
+.image-actions {
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    flex-end;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    10px;
+}
+
+
+.image-action-button {
+
+  min-width:
+    200px;
+
+  min-height:
+    58px;
+
+  padding:
+    15px 22px;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius:
+    10px;
+
+  background:
+    var(--surface-soft);
+
+  color:
+    var(--text);
+
+  cursor:
+    pointer;
+
+  font-size:
+    0.82rem;
+
+  font-weight:
+    750;
+
+  letter-spacing:
+    0.055em;
+
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 100ms ease;
+}
+
+
+.image-action-button:hover:not(:disabled) {
+
+  border-color:
+    var(--accent);
+
+  background:
+    rgba(
+      184,
+      211,
+      106,
+      0.07
+    );
+}
+
+
+.image-action-button:active:not(:disabled) {
+
+  transform:
+    translateY(1px);
+}
+
+
+.image-action-button:disabled {
+
+  opacity:
+    0.38;
+
+  cursor:
+    not-allowed;
+}
+
+
+/* ============================================================
+   AI analysis overlay
+
+   AI text lives inside the image instead of consuming another card.
+   White text plus layered shadow keeps it readable without a box.
+   ============================================================ */
+
+.ai-analysis-overlay {
+
+  position:
+    absolute;
+
+  z-index:
+    5;
+
+  left:
+    18px;
+
+  right:
+    18px;
+
+  bottom:
+    14px;
+
+  color:
+    #ffffff;
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size:
+    clamp(
+      0.72rem,
+      1.05vw,
+      0.9rem
+    );
+
+  font-weight:
+    750;
+
+  line-height:
+    1.4;
+
+  letter-spacing:
+    0.025em;
+
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 1),
+    0 2px 6px rgba(0, 0, 0, 0.95),
+    0 0 12px rgba(0, 0, 0, 0.85);
+
+  pointer-events:
+    none;
+}
+
+
+/* ============================================================
+   Control grid
+   ============================================================ */
+
+.control-grid {
+
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap:
+    12px;
+}
+
+
+.control-panel {
+
+  padding:
+    13px 15px 11px;
+}
+
+
+.control-header {
+
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    flex-start;
+
+  gap:
+    16px;
+}
+
+
+.control-description {
+
+  display:
+    block;
+
+  margin-top:
+    3px;
+
+  color:
+    var(--muted);
+
+  font-size:
+    0.68rem;
+}
+
+
+.actual-state {
+
+  text-align:
+    right;
+}
+
+
+.actual-label {
+
+  display:
+    block;
+}
+
+
+.state-value {
+
+  display:
+    block;
+
+  margin-top:
+    2px;
+
+  font-size:
+    1rem;
+
+  font-weight:
+    760;
+}
+
+
+.state-value.on {
+
+  color:
+    var(--accent);
+}
+
+
+.state-value.off {
+
+  color:
+    var(--muted);
+}
+
+
+/* ============================================================
+   Continuous rail selector
+
+   WATER and LIGHT share the same physical language:
+
+   small circles = fixed available positions
+   large circle = current selected position
+
+   The rail is continuous.
+
+   NOW and PROGRAM describe two semantic areas of one selector,
+   not two separate controls.
+   ============================================================ */
+
+.rail-selector {
+
+  position:
+    relative;
+
+  width:
+    100%;
+
+  margin-top:
+    12px;
+}
+
+
+/* ============================================================
+   NOW / PROGRAM headings
+   ============================================================ */
+
+.selector-headings {
+
+  display:
+    grid;
+
+  grid-template-columns:
+    34% 66%;
+
+  width:
+    100%;
+
+  margin-bottom:
+    8px;
+
+  color:
+    var(--muted);
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size:
+    0.58rem;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.12em;
+}
+
+
+.now-heading {
+
+  text-align:
+    left;
+}
+
+
+.program-heading {
+
+  text-align:
+    left;
+
+  padding-left:
+    8px;
+}
+
+
+/* ============================================================
+   Rail area
+   ============================================================ */
+
+.rail-area {
+
+  position:
+    relative;
+
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(
+      6,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  align-items:
+    start;
+
+  width:
+    100%;
+
+  min-height:
+    52px;
+
+  padding-top:
+    5px;
+}
+
+
+/*
+The LIGHT selector contains five positions instead of six.
+
+Its final slot distribution is corrected below.
+*/
+
+#light-selector
+.rail-area {
+
+  grid-template-columns:
+    repeat(
+      5,
+      minmax(
+        0,
+        1fr
+      )
+    );
+}
+
+
+/* ============================================================
+   Continuous rail
+   ============================================================ */
+
+.rail-line {
+
+  position:
+    absolute;
+
+  z-index:
+    0;
+
+  top:
+    12px;
+
+  left:
+    calc(
+      100% / 12
+    );
+
+  right:
+    calc(
+      100% / 12
+    );
+
+  height:
+    2px;
+
+  border-radius:
+    999px;
+
+  background:
+    var(--line);
+}
+
+
+#light-selector
+.rail-line {
+
+  left:
+    10%;
+
+  right:
+    10%;
+}
+
+
+/* ============================================================
+   Fixed positions
+
+   rail-slot is a semantic button but should never look like
+   a conventional HTML button.
+   ============================================================ */
+
+.rail-slot {
+
+  appearance:
+    none;
+
+  -webkit-appearance:
+    none;
+
+  position:
+    relative;
+
+  z-index:
+    2;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  align-items:
+    center;
+
+  justify-content:
+    flex-start;
+
+  gap:
+    4px;
+
+  min-width:
+    0;
+
+  margin:
+    0;
+
+  padding:
+    0;
+
+  border:
+    0;
+
+  outline:
+    none;
+
+  background:
+    transparent;
+
+  color:
+    var(--muted);
+
+  box-shadow:
+    none;
+
+  cursor:
+    pointer;
+}
+
+
+.rail-slot:hover {
+
+  background:
+    transparent;
+}
+
+
+.rail-slot:focus {
+
+  outline:
+    none;
+}
+
+
+/* ============================================================
+   Small fixed grooves
+   ============================================================ */
+
+.slot-mark {
+
+  display:
+    block;
+
+  width:
+    10px;
+
+  height:
+    10px;
+
+  flex:
+    0 0 10px;
+
+  border:
+    2px solid
+    var(--muted-dark);
+
+  border-radius:
+    50%;
+
+  background:
+    var(--surface);
+
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+
+.rail-slot:hover
+.slot-mark {
+
+  border-color:
+    var(--muted);
+
+  transform:
+    scale(1.15);
+}
+
+
+/* ============================================================
+   Slot labels
+   ============================================================ */
+
+.slot-label {
+
+  margin-top:
+    4px;
+
+  color:
+    var(--muted);
+
+  font-size:
+    0.67rem;
+
+  font-weight:
+    700;
+
+  line-height:
+    1;
+
+  white-space:
+    nowrap;
+}
+
+
+.slot-detail {
+
+  margin-top:
+    -1px;
+
+  color:
+    var(--muted-dark);
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size:
+    0.52rem;
+
+  line-height:
+    1;
+
+  white-space:
+    nowrap;
+}
+
+
+/* ============================================================
+   Moving selector knob
+
+   This is intentionally much larger than the fixed grooves.
+
+   It represents the selected position.
+
+   OFF = neutral grey.
+   Any active request/program = SIX_Q green.
+   ============================================================ */
+
+.selector-knob {
+
+  position:
+    absolute;
+
+  z-index:
+    4;
+
+  top:
+    -3px;
+
+  left:
+    calc(
+      (
+        100% / 6
+      )
+      *
+      (
+        var(
+          --selected-index,
+          0
+        )
+        +
+        0.5
+      )
+    );
+
+  width:
+    28px;
+
+  height:
+    28px;
+
+  border:
+    3px solid
+    var(--accent);
+
+  border-radius:
+    50%;
+
+  background:
+    var(--accent);
+
+  box-shadow:
+    0 0 16px
+    rgba(
+      184,
+      211,
+      106,
+      0.34
+    );
+
+  transform:
+    translateX(
+      -50%
+    );
+
+  transition:
+    left 180ms ease,
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+
+  cursor:
+    grab;
+
+  pointer-events:
+    none;
+}
+
+
+/*
+OFF is deliberately grey.
+
+The selector still remains large, so OFF is a clearly selected
+operating position rather than an absence of selection.
+*/
+
+.selector-knob.off {
+
+  border-color:
+    var(--muted);
+
+  background:
+    var(--muted);
+
+  box-shadow:
+    0 0 12px
+    rgba(
+      148,
+      157,
+      147,
+      0.18
+    );
+}
+
+
+/* ============================================================
+   WATER knob positions
+   ============================================================ */
+
+#water-selector[data-selected-index="0"]
+.selector-knob {
+
+  left:
+    8.333%;
+}
+
+
+#water-selector[data-selected-index="1"]
+.selector-knob {
+
+  left:
+    25%;
+}
+
+
+#water-selector[data-selected-index="2"]
+.selector-knob {
+
+  left:
+    41.666%;
+}
+
+
+#water-selector[data-selected-index="3"]
+.selector-knob {
+
+  left:
+    58.333%;
+}
+
+
+#water-selector[data-selected-index="4"]
+.selector-knob {
+
+  left:
+    75%;
+}
+
+
+#water-selector[data-selected-index="5"]
+.selector-knob {
+
+  left:
+    91.666%;
+}
+
+
+/* ============================================================
+   LIGHT knob positions
+   ============================================================ */
+
+#light-selector[data-selected-index="0"]
+.selector-knob {
+
+  left:
+    10%;
+}
+
+
+#light-selector[data-selected-index="1"]
+.selector-knob {
+
+  left:
+    30%;
+}
+
+
+#light-selector[data-selected-index="2"]
+.selector-knob {
+
+  left:
+    50%;
+}
+
+
+#light-selector[data-selected-index="3"]
+.selector-knob {
+
+  left:
+    70%;
+}
+
+
+#light-selector[data-selected-index="4"]
+.selector-knob {
+
+  left:
+    90%;
+}
+
+
+/* ============================================================
+   Visual distinction between NOW and PROGRAM
+
+   A subtle separator marks the conceptual boundary.
+
+   It does not interrupt the rail.
+   ============================================================ */
+
+.rail-selector::after {
+
+  content:
+    "";
+
+  position:
+    absolute;
+
+  top:
+    17px;
+
+  bottom:
+    8px;
+
+  left:
+    33.333%;
+
+  width:
+    1px;
+
+  background:
+    var(--line-soft);
+
+  pointer-events:
+    none;
+}
+
+
+#light-selector::after {
+
+  left:
+    40%;
+}
+
+
+/* ============================================================
+   Control footer
+   ============================================================ */
+
+.control-footer {
+
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    center;
+
+  gap:
+    16px;
+
+  margin-top:
+    8px;
+
+  padding-top:
+    8px;
+
+  border-top:
+    1px solid
+    var(--line-soft);
+}
+
+
+.mode-text {
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  color:
+    var(--text);
+
+  font-size:
+    0.65rem;
+
+  letter-spacing:
+    0.05em;
+}
+
+
+/* ============================================================
+   Footer
+   ============================================================ */
+
+.footer {
+
+  margin-top:
+    auto;
+
+  padding-top:
+    2px;
+
+  color:
+    var(--muted-dark);
+
+  text-align:
+    center;
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size:
+    0.62rem;
+
+  letter-spacing:
+    0.06em;
+}
+
+
+/* ============================================================
+   Smaller notebooks
+
+   Reduce spacing before reducing information.
+   ============================================================ */
+
+@media (
+  max-height: 800px
+) {
+
+  .dashboard {
+
+    padding-top:
+      14px;
+
+    gap:
+      9px;
+  }
+
+
+  .topbar {
+
+    min-height:
+      58px;
+  }
+
+
+  .brand h1 {
+
+    font-size:
+      3.35rem;
+  }
+
+
+  .metric-card {
+
+    min-height:
+      66px;
+
+    padding:
+      10px 12px;
+  }
+
+
+  .control-panel {
+
+    padding:
+      10px 13px;
+  }
+
+
+  .rail-selector {
+
+    margin-top:
+      8px;
+  }
+
+
+  .rail-area {
+
+    min-height:
+      48px;
+  }
+
+
+  .selector-knob {
+
+    width:
+      25px;
+
+    height:
+      25px;
+
+    top:
+      -2px;
+  }
+}
+
+
+/* ============================================================
+   Tablet / narrow screen
+   ============================================================ */
+
+@media (
+  max-width: 850px
+) {
+
+  .dashboard {
+
+    min-height:
+      auto;
+  }
+
+
+  .main-grid {
+
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .system-column {
+
+    grid-template-columns:
+      repeat(
+        3,
+        1fr
+      );
+
+    grid-template-rows:
+      auto;
+  }
+
+
+  .capture-status-card {
+
+    grid-column:
+      1 / -1;
+  }
+
+
+  .control-grid {
+
+    grid-template-columns:
+      1fr;
+  }
+}
+
+
+/* ============================================================
+   Phone
+   ============================================================ */
+
+@media (
+  max-width: 560px
+) {
+
+  .dashboard {
+
+    width:
+      calc(
+        100vw - 20px
+      );
+  }
+
+
+  .system-column {
+
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .capture-status-card {
+
+    grid-column:
+      auto;
+  }
+
+
+  .control-footer {
+
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+
+    gap:
+      3px;
+  }
+
+
+  .selector-headings {
+
+    font-size:
+      0.52rem;
+  }
+
+
+  .slot-label {
+
+    font-size:
+      0.6rem;
+  }
+
+
+  .slot-detail {
+
+    font-size:
+      0.46rem;
+  }
+
+
+  .selector-knob {
+
+    width:
+      24px;
+
+    height:
+      24px;
+  }
+
+
+  .panel-heading {
+
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+  }
+
+
+  .image-actions {
+
+    width:
+      100%;
+
+    justify-content:
+      stretch;
+  }
+
+
+  .image-action-button {
+
+    flex:
+      1 1 100%;
+
+    width:
+      100%;
+
+    min-width:
+      0;
+  }
+}

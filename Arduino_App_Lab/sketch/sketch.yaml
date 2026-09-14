@@ -1,0 +1,9 @@
+profiles:
+  default:
+    fqbn: 
+    platforms:
+      - platform: arduino:zephyr
+    libraries:
+      - SparkFun Qwiic Humidity AHT20 (1.0.3)
+
+default_profile: default

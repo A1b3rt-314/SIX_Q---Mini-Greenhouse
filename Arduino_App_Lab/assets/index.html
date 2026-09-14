@@ -1,0 +1,647 @@
+<!--
+SPDX-FileCopyrightText: 2026 Alberto Prestes
+SPDX-License-Identifier: 0BSD
+
+SIX_Q - Local Dashboard
+
+Design criteria:
+
+- Everything important should fit in one notebook-sized viewport.
+- The latest mosaic keeps its real aspect ratio.
+- The image container does not create artificial black borders.
+- Controls should feel physical and immediately understandable.
+- The large selector can be dragged or moved by clicking a fixed slot.
+- WATER and LIGHT use the same visual language but represent different rules.
+- The selector represents the selected request or program.
+- STATE represents what the hardware is actually doing.
+- The browser requests. UNO Q decides.
+-->
+
+<!doctype html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>
+    SIX_Q - Mini Greenhouse
+  </title>
+
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="style.css"
+  >
+
+</head>
+
+
+<body>
+
+  <main class="dashboard">
+
+
+    <!-- =====================================================
+         Header
+         ===================================================== -->
+
+    <header class="topbar">
+
+      <div class="brand">
+
+        <p class="eyebrow">
+          GERMINOLAB / LOCAL SYSTEM
+        </p>
+
+        <h1>
+          SIX_Q
+        </h1>
+
+      </div>
+
+
+      <div class="connection">
+
+        <span
+          id="connection-dot"
+          class="connection-dot offline"
+        ></span>
+
+        <span id="connection-text">
+          Connecting
+        </span>
+
+      </div>
+
+    </header>
+
+
+    <!-- =====================================================
+         Main information
+         ===================================================== -->
+
+    <section class="main-grid">
+
+
+      <!-- ===================================================
+           Latest image
+
+           The image itself defines its height.
+           There is no oversized black frame around it.
+           =================================================== -->
+
+      <article class="image-panel">
+
+        <div class="panel-heading">
+
+          <div>
+
+            <span class="label">
+              LAST IMAGE
+            </span>
+
+            <span
+              id="capture-time"
+              class="subvalue"
+            >
+              No capture yet
+            </span>
+
+          </div>
+
+
+          <div class="image-actions">
+
+            <button
+              id="capture-button"
+              class="capture-button image-action-button"
+              disabled
+            >
+              CAPTURE NOW
+            </button>
+
+            <button
+              id="analyze-ai-button"
+              class="analyze-ai-button image-action-button"
+              type="button"
+            >
+              ANALYZE WITH AI
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <div class="image-holder">
+
+          <img
+            id="latest-image"
+            alt="Latest SIX_Q mosaic"
+            hidden
+          >
+
+          <div
+            id="ai-analysis-overlay"
+            class="ai-analysis-overlay"
+            hidden
+          ></div>
+
+          <div
+            id="image-placeholder"
+            class="image-placeholder"
+          >
+            Waiting for the first USER capture.
+          </div>
+
+        </div>
+
+      </article>
+
+
+      <!-- ===================================================
+           Environment + Vision state
+           =================================================== -->
+
+      <aside class="system-column">
+
+
+        <article class="metric-card">
+
+          <span class="label">
+            TEMPERATURE
+          </span>
+
+          <div class="metric-value">
+
+            <span id="temperature">
+              --.-
+            </span>
+
+            <span class="metric-unit">
+              °C
+            </span>
+
+          </div>
+
+        </article>
+
+
+        <article class="metric-card">
+
+          <span class="label">
+            HUMIDITY
+          </span>
+
+          <div class="metric-value">
+
+            <span id="humidity">
+              --.-
+            </span>
+
+            <span class="metric-unit">
+              %
+            </span>
+
+          </div>
+
+        </article>
+
+
+        <article class="metric-card">
+
+          <span class="label">
+            UNO Q TIME
+          </span>
+
+          <div
+            id="clock"
+            class="clock"
+          >
+            --:--:--
+          </div>
+
+        </article>
+
+
+        <article class="capture-status-card">
+
+          <span class="label">
+            VISION
+          </span>
+
+          <div
+            id="capture-message"
+            class="status-message"
+          >
+            No USER capture requested yet.
+          </div>
+
+          <div
+            id="capture-rule"
+            class="small-note"
+          >
+            0 / 3 USER captures used in the last hour.
+          </div>
+
+        </article>
+
+
+      </aside>
+
+    </section>
+
+
+    <!-- =====================================================
+         Controls
+         ===================================================== -->
+
+    <section class="control-grid">
+
+
+      <!-- ===================================================
+           WATER
+
+           NOW:
+           OFF or one 5 second pulse.
+
+           PROGRAM:
+           the same 5 second pulse repeated every
+           4 / 6 / 8 / 12 hours.
+
+           One selector therefore describes both the immediate
+           action and the selected repetition rule.
+           =================================================== -->
+
+      <article class="control-panel">
+
+        <div class="control-header">
+
+          <div>
+
+            <span class="label">
+              WATER
+            </span>
+
+            <span class="control-description">
+              5s pulse · repetition interval
+            </span>
+
+          </div>
+
+
+          <div class="actual-state">
+
+            <span class="actual-label">
+              STATE
+            </span>
+
+            <span
+              id="water-state"
+              class="state-value off"
+            >
+              OFF
+            </span>
+
+          </div>
+
+        </div>
+
+
+        <div
+          id="water-selector"
+          class="rail-selector"
+          data-selected-index="0"
+        >
+
+
+          <div class="selector-headings">
+
+            <span class="now-heading">
+              ACTIVATE NOW
+            </span>
+
+            <span class="program-heading">
+              PROGRAM
+            </span>
+
+          </div>
+
+
+          <!--
+          The rail itself never changes color.
+
+          The large knob is the only strongly colored element.
+          It should feel like a physical piece sliding between
+          fixed grooves.
+          -->
+
+          <div class="rail-area">
+
+            <div class="rail-line"></div>
+
+
+            <button
+              class="rail-slot"
+              data-index="0"
+              data-value="off"
+              aria-label="Water off"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">OFF</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="1"
+              data-value="now"
+              aria-label="Water now for 5 seconds"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">5s</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="2"
+              data-value="4"
+              aria-label="Water for 5 seconds every 4 hours"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">4h</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="3"
+              data-value="6"
+              aria-label="Water for 5 seconds every 6 hours"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">6h</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="4"
+              data-value="8"
+              aria-label="Water for 5 seconds every 8 hours"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">8h</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="5"
+              data-value="12"
+              aria-label="Water for 5 seconds every 12 hours"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">12h</span>
+            </button>
+
+
+            <div
+              class="selector-knob off"
+              role="slider"
+              tabindex="0"
+              aria-label="Water mode selector"
+              aria-valuemin="0"
+              aria-valuemax="5"
+              aria-valuenow="0"
+            ></div>
+
+          </div>
+
+        </div>
+
+
+        <div class="control-footer">
+
+          <span
+            id="water-mode"
+            class="mode-text"
+          >
+            MANUAL · OFF
+          </span>
+
+          <span class="small-note">
+            Program = 5s every selected interval
+          </span>
+
+        </div>
+
+      </article>
+
+
+      <!-- ===================================================
+           LIGHT
+
+           NOW:
+           OFF or unrestricted manual ON.
+
+           PROGRAM:
+           fixed daily supplemental-light windows.
+
+           6h  = 06:00–12:00
+           8h  = 06:00–14:00
+           12h = 06:00–18:00
+           =================================================== -->
+
+      <article class="control-panel">
+
+        <div class="control-header">
+
+          <div>
+
+            <span class="label">
+              LIGHT
+            </span>
+
+            <span class="control-description">
+              supplemental light · fixed daily window
+            </span>
+
+          </div>
+
+
+          <div class="actual-state">
+
+            <span class="actual-label">
+              STATE
+            </span>
+
+            <span
+              id="light-state"
+              class="state-value off"
+            >
+              OFF
+            </span>
+
+          </div>
+
+        </div>
+
+
+        <div
+          id="light-selector"
+          class="rail-selector"
+          data-selected-index="0"
+        >
+
+
+          <div class="selector-headings">
+
+            <span class="now-heading">
+              ACTIVATE NOW
+            </span>
+
+            <span class="program-heading">
+              PROGRAM
+            </span>
+
+          </div>
+
+
+          <div class="rail-area">
+
+            <div class="rail-line"></div>
+
+
+            <button
+              class="rail-slot"
+              data-index="0"
+              data-value="off"
+              aria-label="Light off"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">OFF</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="1"
+              data-value="on"
+              aria-label="Light on now"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">ON</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="2"
+              data-value="6"
+              aria-label="Light from 06:00 to 12:00"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">6h</span>
+              <span class="slot-detail">06–12</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="3"
+              data-value="8"
+              aria-label="Light from 06:00 to 14:00"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">8h</span>
+              <span class="slot-detail">06–14</span>
+            </button>
+
+
+            <button
+              class="rail-slot"
+              data-index="4"
+              data-value="12"
+              aria-label="Light from 06:00 to 18:00"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">12h</span>
+              <span class="slot-detail">06–18</span>
+            </button>
+
+
+            <div
+              class="selector-knob off"
+              role="slider"
+              tabindex="0"
+              aria-label="Light mode selector"
+              aria-valuemin="0"
+              aria-valuemax="4"
+              aria-valuenow="0"
+            ></div>
+
+          </div>
+
+        </div>
+
+
+        <div class="control-footer">
+
+          <span
+            id="light-mode"
+            class="mode-text"
+          >
+            MANUAL · OFF
+          </span>
+
+          <span class="small-note">
+            Program = fixed daily lighting window
+          </span>
+
+        </div>
+
+      </article>
+
+
+    </section>
+
+
+    <footer class="footer">
+
+      Local first.
+      UNO Q decides.
+      Interfaces only request.
+
+    </footer>
+
+
+  </main>
+
+
+  <!--
+  Third-party runtime dependency supplied by Arduino WebUI.
+  Its original license remains unchanged.
+  -->
+
+  <script src="libs/socket.io.min.js"></script>
+
+
+  <!--
+  Original SIX_Q dashboard behavior.
+  -->
+
+  <script src="app.js"></script>
+
+
+</body>
+
+</html>
