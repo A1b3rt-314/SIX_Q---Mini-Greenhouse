@@ -16,6 +16,26 @@
  *
  * Camera driver.
  */
+/*
+ * SPDX-License-Identifier: LGPL-3.0-or-later
+ *
+ * SIX_Q V7 adaptation; functional changes dated 2026-09-25.
+ * Attribution and change notice added 2026-09-27.
+ * Based on ArduinoCore-mbed 4.6.0, libraries/Camera/src/camera.cpp:
+ * https://github.com/arduino/ArduinoCore-mbed/blob/4.6.0/libraries/Camera/src/camera.cpp
+ *
+ * Added Camera::grabFrameCropped() for DCMI cropping while the GC2145 output
+ * window remains fixed. The new path validates buffer/geometry, checks DMA
+ * start, waits with a timeout for DMA completion and the frame event, records
+ * the remaining DMA count before stopping, and handles buffer cache coherency.
+ * The original grabFrame() implementation is retained unchanged.
+ *
+ * Motivation: intermittent RGB565 artifacts observed in SIX_Q acquisition.
+ * This is a project-specific adaptation, not an Arduino-endorsed change or
+ * a claim that a unique upstream defect has been established.
+ * This file, including the adaptation, remains under LGPL version 3 or later.
+ * See ../THIRD_PARTY_NOTICES.md and ../LICENSES/ for provenance and terms.
+ */
 #include "Arduino.h"
 #include "camera.h"
 #include "Wire.h"
@@ -736,6 +756,70 @@ int Camera::grabFrame(FrameBuffer &fb, uint32_t timeout)
     // Invalidate buffer after DMA transfer.
     SCB_InvalidateDCache_by_Addr((uint32_t*) framebuffer, framesize);
     #endif
+    return 0;
+}
+
+// SIX_Q V7 cropped capture path. This lives in an isolated copy of the Arduino
+// driver because hdcmi is file-local. The installed library remains intact.
+int Camera::grabFrameCropped(FrameBuffer &fb, uint16_t x, uint16_t y,
+                             uint16_t width, uint16_t height,
+                             volatile uint32_t *frameEvents,
+                             uint32_t timeout,
+                             uint32_t *remainingBeforeStop)
+{
+    if (remainingBeforeStop) *remainingBeforeStop = 0xffffffffUL;
+    if (!frameEvents || !remainingBeforeStop || !fb.getBuffer() ||
+        pixformat != CAMERA_RGB565 || resolution != CAMERA_R1600x1200 ||
+        width == 0 || height == 0 || x + width > 1600 || y + height > 1200) {
+        return -1;
+    }
+    const uint32_t bytes = uint32_t(width) * height * 2U;
+    if (bytes > fb.getBufferSize() || (bytes & 3U) ||
+        ((uintptr_t)fb.getBuffer() & (FB_ALIGNMENT - 1U))) return -1;
+    if ((hdcmi.Instance->CR & DCMI_CR_CAPTURE) || (DCMI_DMA_STREAM->CR & DMA_SxCR_EN))
+        return -2;
+
+    // In 8-bit RGB565 DVP mode a pixel occupies two input clock cycles.
+    // Crop is configured only while both DCMI capture and DMA are idle.
+    if (HAL_DCMI_ConfigCROP(&hdcmi, uint32_t(x) * 2U, y,
+                            uint32_t(width) * 2U - 1U, height - 1U) != HAL_OK ||
+        HAL_DCMI_EnableCROP(&hdcmi) != HAL_OK) return -3;
+
+    // An aborted attempt may still be archived. Never expose heap leftovers.
+    memset(fb.getBuffer(), 0, bytes);
+    SCB_CleanInvalidateDCache_by_Addr((uint32_t*)fb.getBuffer(), bytes);
+    *frameEvents = 0;
+    hdcmi.Instance->ICR = DCMI_ICR_FRAME_ISC | DCMI_ICR_OVR_ISC | DCMI_ICR_ERR_ISC;
+    if (HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_SNAPSHOT,
+                           (uint32_t)fb.getBuffer(), bytes / 4U) != HAL_OK)
+        return -4;
+
+    // FRAME is enabled by this HAL after the DMA transfer callback. Waiting
+    // for both observations prevents HAL_DCMI_Stop from aborting a live DMA.
+    int result = -5;
+    const uint32_t start = millis();
+    while (millis() - start <= timeout) {
+        if (hdcmi.ErrorCode || hdma.ErrorCode ||
+            (hdcmi.Instance->RISR & (DCMI_FLAG_OVRRI | DCMI_FLAG_ERRRI))) {
+            result = -6;
+            break;
+        }
+        if (DCMI_DMA_STREAM->NDTR == 0 && *frameEvents == 1) {
+            result = 0;
+            break;
+        }
+        if (*frameEvents > 1) {
+            result = -7;
+            break;
+        }
+        __WFI();
+    }
+    *remainingBeforeStop = DCMI_DMA_STREAM->NDTR;
+    if (HAL_DCMI_Stop(&hdcmi) != HAL_OK) result = -8;
+    #if defined(__CORTEX_M7)
+    SCB_InvalidateDCache_by_Addr((uint32_t*)fb.getBuffer(), bytes);
+    #endif
+    if (result != 0) return result;
     return 0;
 }
 

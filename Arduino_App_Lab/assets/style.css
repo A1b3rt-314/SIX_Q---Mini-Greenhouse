@@ -928,7 +928,7 @@ button {
     grid;
 
   grid-template-columns:
-    34% 66%;
+    28.571% 71.429%;
 
   width:
     100%;
@@ -989,7 +989,7 @@ button {
 
   grid-template-columns:
     repeat(
-      6,
+      7,
       minmax(
         0,
         1fr
@@ -1011,7 +1011,7 @@ button {
 
 
 /*
-The LIGHT selector contains five positions instead of six.
+The LIGHT selector contains six positions instead of seven.
 
 Its final slot distribution is corrected below.
 */
@@ -1021,7 +1021,7 @@ Its final slot distribution is corrected below.
 
   grid-template-columns:
     repeat(
-      5,
+      6,
       minmax(
         0,
         1fr
@@ -1280,7 +1280,7 @@ Its final slot distribution is corrected below.
   left:
     calc(
       (
-        100% / 6
+        100% / 7
       )
       *
       (
@@ -1369,51 +1369,38 @@ operating position rather than an absence of selection.
 
 #water-selector[data-selected-index="0"]
 .selector-knob {
-
-  left:
-    8.333%;
+  left: 7.142857%;
 }
-
 
 #water-selector[data-selected-index="1"]
 .selector-knob {
-
-  left:
-    25%;
+  left: 21.428571%;
 }
-
 
 #water-selector[data-selected-index="2"]
 .selector-knob {
-
-  left:
-    41.666%;
+  left: 35.714286%;
 }
-
 
 #water-selector[data-selected-index="3"]
 .selector-knob {
-
-  left:
-    58.333%;
+  left: 50.000000%;
 }
-
 
 #water-selector[data-selected-index="4"]
 .selector-knob {
-
-  left:
-    75%;
+  left: 64.285714%;
 }
-
 
 #water-selector[data-selected-index="5"]
 .selector-knob {
-
-  left:
-    91.666%;
+  left: 78.571429%;
 }
 
+#water-selector[data-selected-index="6"]
+.selector-knob {
+  left: 92.857143%;
+}
 
 /* ============================================================
    LIGHT knob positions
@@ -1421,43 +1408,33 @@ operating position rather than an absence of selection.
 
 #light-selector[data-selected-index="0"]
 .selector-knob {
-
-  left:
-    10%;
+  left: 8.333333%;
 }
-
 
 #light-selector[data-selected-index="1"]
 .selector-knob {
-
-  left:
-    30%;
+  left: 25.000000%;
 }
-
 
 #light-selector[data-selected-index="2"]
 .selector-knob {
-
-  left:
-    50%;
+  left: 41.666667%;
 }
-
 
 #light-selector[data-selected-index="3"]
 .selector-knob {
-
-  left:
-    70%;
+  left: 58.333333%;
 }
-
 
 #light-selector[data-selected-index="4"]
 .selector-knob {
-
-  left:
-    90%;
+  left: 75.000000%;
 }
 
+#light-selector[data-selected-index="5"]
+.selector-knob {
+  left: 91.666667%;
+}
 
 /* ============================================================
    Visual distinction between NOW and PROGRAM
@@ -1482,7 +1459,7 @@ operating position rather than an absence of selection.
     8px;
 
   left:
-    33.333%;
+    28.571%;
 
   width:
     1px;
@@ -1498,7 +1475,7 @@ operating position rather than an absence of selection.
 #light-selector::after {
 
   left:
-    40%;
+    33.333%;
 }
 
 
@@ -1822,4 +1799,17 @@ operating position rather than an absence of selection.
     min-width:
       0;
   }
+}
+#light-selector .selector-headings {
+  grid-template-columns: 33.333% 66.667%;
+}
+
+/* Let the selected program's event times wrap like other control text. */
+.control-footer {
+  flex-wrap: wrap;
+}
+.control-footer .mode-text {
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.5;
 }

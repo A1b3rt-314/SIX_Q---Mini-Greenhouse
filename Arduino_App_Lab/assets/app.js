@@ -22,10 +22,10 @@ Architecture rule:
 The dashboard is not the hardware authority.
 
 Immediate requests already supported by the UNO Q are sent normally.
-PROGRAM selections are currently interface state only.
+PROGRAM selections are sent to the MCU through Linux.
 
 Automatic schedules will not be activated from JavaScript.
-They will become real only after the corresponding UNO Q rules exist.
+The MCU owns program timing and shared irrigation limits.
 */
 
 
@@ -177,6 +177,8 @@ const lightSelector =
 let latestState =
   null;
 
+
+let serverTimeZone = "America/Montevideo";
 
 let serverClockEpochMs =
   null;
@@ -350,7 +352,7 @@ function updateImage(
       ?
       new Date(
         state.last_capture_utc
-      ).toLocaleString()
+      ).toLocaleString([], {timeZone: serverTimeZone})
       :
       "No capture yet";
 }
@@ -372,6 +374,9 @@ function updateServerClock(
   }
 
 
+  serverTimeZone = state.server_timezone || serverTimeZone;
+  clockElement.title = `UNO Q · ${serverTimeZone}`;
+
   serverClockEpochMs =
     new Date(
       state.server_time_utc
@@ -379,7 +384,7 @@ function updateServerClock(
 
 
   serverClockReceivedAtMs =
-    Date.now();
+    performance.now();
 }
 
 
@@ -399,7 +404,7 @@ function refreshClock() {
 
 
   const elapsed =
-    Date.now() -
+    performance.now() -
     serverClockReceivedAtMs;
 
 
@@ -414,6 +419,9 @@ function refreshClock() {
     current.toLocaleTimeString(
       [],
       {
+        timeZone: serverTimeZone,
+        hourCycle: "h23",
+
         hour:
           "2-digit",
 
@@ -1188,19 +1196,8 @@ const waterRail =
       }
 
 
-      /*
-       * PROGRAM selections are intentionally not emitted yet.
-       *
-       * The browser may show the requested program, but it is
-       * not allowed to become the scheduler.
-       */
+      socket.emit("program_request", {subsystem: "water", hours: Number(value)});
 
-      waterMode.textContent =
-        (
-          `PROGRAM · 5s EVERY `
-          +
-          `${value}h`
-        );
     }
   );
 
@@ -1208,6 +1205,14 @@ const waterRail =
 // ============================================================
 // LIGHT selector
 // ============================================================
+
+const waterTimes = {
+  "4": "00:00 · 04:00 · 08:00 · 12:00 · 16:00 · 20:00",
+  "6": "00:00 · 06:00 · 12:00 · 18:00",
+  "8": "00:00 · 08:00 · 16:00",
+  "12": "00:00 · 12:00",
+  "24": "12:00"
+};
 
 const lightWindows = {
 
@@ -1218,7 +1223,10 @@ const lightWindows = {
     "06:00–14:00",
 
   "12":
-    "06:00–18:00"
+    "06:00–18:00",
+
+  "18":
+    "06:00–00:00"
 };
 
 
@@ -1278,19 +1286,8 @@ const lightRail =
       }
 
 
-      lightMode.textContent =
-        (
-          `PROGRAM · `
-          +
-          lightWindows[value]
-        );
+      socket.emit("program_request", {subsystem: "light", hours: Number(value)});
 
-
-      /*
-       * The selected window is visible, but not active yet.
-       *
-       * Automatic light timing belongs to the UNO Q.
-       */
     }
   );
 
@@ -1343,57 +1340,25 @@ function applyState(
     );
 
 
-  updateImage(
-    state
-  );
-
-
-  updateServerClock(
-    state
-  );
+  updateServerClock(state);
+  updateImage(state);
 
 
   refreshCaptureButton();
   refreshAiButton();
 
 
-  /*
-   * Immediate/manual selectors follow actual hardware state
-   * only while no visual PROGRAM position is selected.
-   *
-   * Later, when PROGRAM becomes authoritative UNO Q state,
-   * the selected mode will also come from the backend.
-   */
+  const waterProgram = Number(state.water_program || 0);
+  const lightProgram = Number(state.light_program || 0);
+  waterRail.select(waterProgram ? [0, 0, 4, 6, 8, 12, 24].indexOf(waterProgram) : (state.water ? 1 : 0), false);
+  lightRail.select(lightProgram ? [0, 0, 6, 8, 12, 18].indexOf(lightProgram) : (state.light ? 1 : 0), false);
+  waterMode.textContent = (waterProgram ? `PROGRAM · ${waterTimes[String(waterProgram)]}` : "MANUAL")
+    + ` · ${Number(state.water_used || 0)}/4 TODAY` + (state.water ? " · WATERING" : "");
+  document.getElementById("water-rule").textContent = waterProgram
+    ? "5s per event · subject to daily quota"
+    : "5s per request · quota resets at 00:00";
+  lightMode.textContent = lightProgram ? `PROGRAM · ${lightWindows[String(lightProgram)]}` : (state.light ? "MANUAL · ON" : "MANUAL · OFF");
 
-
-  if (
-    waterRail.getIndex()
-    <=
-    1
-  ) {
-
-    waterRail.select(
-      state.water
-        ? 1
-        : 0,
-      false
-    );
-  }
-
-
-  if (
-    lightRail.getIndex()
-    <=
-    1
-  ) {
-
-    lightRail.select(
-      state.light
-        ? 1
-        : 0,
-      false
-    );
-  }
 }
 
 

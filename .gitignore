@@ -5,8 +5,11 @@ secrets.h
 .env.*
 !.env.example
 !.env.sample
+.vscode/
+
 
 # Runtime data and images
+SIX_Q_v2_analysis
 *.db
 *.db-*
 *.sqlite
@@ -25,3 +28,6 @@ venv/
 # macOS metadata
 .DS_Store
 ._*
+
+# Legacy iCloud attachment export; the repository uses images/ instead
+Attachments/

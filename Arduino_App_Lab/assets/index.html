@@ -57,7 +57,7 @@ Design criteria:
       <div class="brand">
 
         <p class="eyebrow">
-          GERMINOLAB / LOCAL SYSTEM
+          LOCAL SYSTEM
         </p>
 
         <h1>
@@ -273,8 +273,8 @@ Design criteria:
            OFF or one 5 second pulse.
 
            PROGRAM:
-           the same 5 second pulse repeated every
-           4 / 6 / 8 / 12 hours.
+           5 second pulses at fixed local hours.
+           4 / 6 / 8 / 12 hour grids; 24h runs at noon.
 
            One selector therefore describes both the immediate
            action and the selected repetition rule.
@@ -414,13 +414,24 @@ Design criteria:
             </button>
 
 
+            <button
+              class="rail-slot"
+              data-index="6"
+              data-value="24"
+              aria-label="Water for 5 seconds daily at 12:00"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">24h</span>
+            </button>
+
+
             <div
               class="selector-knob off"
               role="slider"
               tabindex="0"
               aria-label="Water mode selector"
               aria-valuemin="0"
-              aria-valuemax="5"
+              aria-valuemax="6"
               aria-valuenow="0"
             ></div>
 
@@ -438,8 +449,8 @@ Design criteria:
             MANUAL · OFF
           </span>
 
-          <span class="small-note">
-            Program = 5s every selected interval
+          <span id="water-rule" class="small-note">
+            5s per request · quota resets at 00:00
           </span>
 
         </div>
@@ -459,6 +470,7 @@ Design criteria:
            6h  = 06:00–12:00
            8h  = 06:00–14:00
            12h = 06:00–18:00
+           18h = 06:00–00:00
            =================================================== -->
 
       <article class="control-panel">
@@ -579,13 +591,25 @@ Design criteria:
             </button>
 
 
+            <button
+              class="rail-slot"
+              data-index="5"
+              data-value="18"
+              aria-label="Light from 06:00 to midnight"
+            >
+              <span class="slot-mark"></span>
+              <span class="slot-label">18h</span>
+              <span class="slot-detail">06–00</span>
+            </button>
+
+
             <div
               class="selector-knob off"
               role="slider"
               tabindex="0"
               aria-label="Light mode selector"
               aria-valuemin="0"
-              aria-valuemax="4"
+              aria-valuemax="5"
               aria-valuenow="0"
             ></div>
 

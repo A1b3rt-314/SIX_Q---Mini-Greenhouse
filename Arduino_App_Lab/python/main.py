@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: 0BSD
 
 """
-SIX_Q - Linux application
+SIX_Q - Linux application  /////// VERSION 7 ///////
 
 This file joins the pieces already validated independently:
 
@@ -11,7 +11,7 @@ This file joins the pieces already validated independently:
 - Web WATER and LIGHT requests.
 - Local SQL storage.
 - Local WebUI dashboard.
-- Nicla Vision V4.
+- Nicla Vision V7 with optional diagnostics.
 
 The basic rule is intentionally simple:
 
@@ -23,6 +23,7 @@ Physical controls and web controls have the same value.
 Neither one is allowed to drive a relay directly.
 """
 
+import os
 import shutil
 import threading
 import time
@@ -30,12 +31,13 @@ import time
 
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from arduino.app_utils import App, Bridge
 from arduino.app_bricks.dbstorage_sqlstore import SQLStore
 from arduino.app_bricks.web_ui import WebUI
 
-import vision
+import vision_V7 as vision
 import ai_analysis
 
 
@@ -44,6 +46,11 @@ import ai_analysis
 # ============================================================
 
 DATABASE_NAME = "six_q.db"
+
+# Local installation time, independent of the container/browser timezone.
+# Override SIXQ_TIMEZONE with an IANA timezone when installing elsewhere.
+LOCAL_TIMEZONE_NAME = os.environ.get("SIXQ_TIMEZONE", "America/Montevideo")
+LOCAL_TIMEZONE = ZoneInfo(LOCAL_TIMEZONE_NAME)
 
 CAPTURE_ROOT = Path("/app/captures")
 LATEST_MOSAIC = Path("/app/assets/latest_mosaic.png")
@@ -222,7 +229,7 @@ def bridge_call(
 
 class VisionBridge:
     """
-    Small adapter for the already validated Vision V4 code.
+    Adapter for the Vision capture pipeline.
 
     vision.py expects an object with a .call() function.
     We give it exactly that while keeping Bridge calls serialized.
@@ -367,9 +374,8 @@ def public_state():
     #
     # The browser may format this timestamp for display,
     # but it does not become the system clock authority.
-    payload["server_time_utc"] = (
-        utc_iso()
-    )
+    payload["server_time_utc"] = utc_iso()
+    payload["server_timezone"] = LOCAL_TIMEZONE_NAME
 
     if payload[
         "last_image_available"
@@ -650,7 +656,15 @@ def read_control_state():
             )
         )
 
+        programs = {
+            "water_program": int(bridge_call("get_water_program")),
+            "light_program": int(bridge_call("get_light_program")),
+            "water_used": int(bridge_call("get_water_used")),
+        }
+
         with state_lock:
+            state.update(programs)
+
 
             state["water"] = bool(
                 water
@@ -879,23 +893,27 @@ def user_capture_allowed():
 
 
 # ============================================================
-# Find finished Vision V4 mosaic
+# Find a finished mosaic, including captures from previous installations
 # ============================================================
 
 def find_capture_mosaic(
     capture_id
 ):
 
-    # Vision V4 already generates directories ending with capture_id.
-    #
-    # We deliberately find its output instead of modifying the proven
-    # Vision file only to return another path.
+    candidates = []
 
-    candidates = list(
-        CAPTURE_ROOT.glob(
-            f"copilotv4_*_{capture_id}/mosaico.png"
+    for pattern in (
+        f"sixqv7_*_{capture_id}/mosaico.png",
+        f"sixqv6_*_{capture_id}/mosaico.png",
+        f"sixqv5_*_{capture_id}/mosaico.png",
+        f"copilotv4_*_{capture_id}/mosaico.png"
+    ):
+
+        candidates.extend(
+            CAPTURE_ROOT.glob(
+                pattern
+            )
         )
-    )
 
     if not candidates:
 
@@ -928,7 +946,7 @@ def run_user_capture():
 
         send_state()
 
-        # Vision V4 stays responsible for:
+        # Vision V7 stays responsible for:
         #
         # AUTH
         # READY
@@ -1001,14 +1019,19 @@ def run_user_capture():
                 )
 
                 state["capture_message"] = (
-                    "USER capture completed."
+                    "USER capture completed. "
+                    + {"screen_pass": "No visual anomaly detected.",
+                       "suspect": "WARNING: tile quality remains unconfirmed after bounded recapture.",
+                       "acquisition_or_integrity_failed": "WARNING: acquisition/transfer failed; image kept as evidence.",
+                       "not_checked": "Visual screening disabled."
+                      }.get(manifest.get("quality_status"), "Image quality unavailable.")
                 )
 
             add_system_event(
                 "VISION",
                 "CAPTURE_COMPLETE",
                 "USER",
-                f"capture_id={capture_id}"
+                f"capture_id={capture_id}; quality={manifest.get('quality_status', 'unknown')}; integrity={manifest.get('integrity_status', 'unavailable')}"
             )
 
         else:
@@ -1440,9 +1463,48 @@ def on_ui_connect(
     )
 
 
+def sync_program_clock():
+    # Sample after acquiring the lock, so a capture cannot leave a queued
+    # synchronization carrying an old timestamp.
+    with bridge_lock:
+        local = datetime.now(LOCAL_TIMEZONE)
+        Bridge.call("set_program_clock", local.toordinal(), local.hour * 3600 + local.minute * 60 + local.second)
+
+
+def on_program_request(sid, data):
+    if not isinstance(data, dict):
+        return
+    subsystem = data.get("subsystem")
+    hours = data.get("hours")
+    allowed = {"water": (4, 6, 8, 12, 24), "light": (6, 8, 12, 18)}
+    if subsystem not in allowed or type(hours) is not int or hours not in allowed[subsystem]:
+        return
+    try:
+        sync_program_clock()
+        accepted = bool(bridge_call(f"set_{subsystem}_program", hours))
+        log(f"PROGRAM | {subsystem} | hours={hours} | accepted={accepted}")
+    except Exception as error:
+        log(f"PROGRAM | ERROR | {error}")
+    read_control_state()
+    send_state()
+
+
+def monitor_programs():
+    while True:
+        try:
+            sync_program_clock()
+            read_control_state()
+            send_state()
+        except Exception as error:
+            log(f"PROGRAM | SYNC ERROR | {error}")
+        time.sleep(2)
+
+
 # ============================================================
 # Register WebUI requests
 # ============================================================
+
+ui.on_message("program_request", on_program_request)
 
 ui.on_connect(
     on_ui_connect
@@ -1496,8 +1558,8 @@ def startup():
     # Give the MCU a moment to finish initialization.
     time.sleep(2)
 
+    threading.Thread(target=monitor_programs, daemon=True, name="sixq-programs").start()
     read_control_state()
-
     send_state()
 
     log(

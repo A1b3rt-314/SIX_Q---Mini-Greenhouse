@@ -8,7 +8,7 @@
 
 
 /*
- * SIX_Q - UNO Q MCU
+ * SIX_Q - UNO Q MCU /////// VERSION 7 ///////
  *
  * Current jobs:
  *
@@ -19,7 +19,7 @@
  * - Drive relay R2 for WATER.
  * - Drive relay R3 for LIGHT.
  * - Drive the green status LED on OUT5.
- * - Provide the proven Nicla Vision V4 I2C bridge.
+ * - Provide the Nicla Vision V7 I2C bridge with explicit capture profiles and attempts.
  *
  *
  * CONTROL PRINCIPLE
@@ -146,9 +146,16 @@ constexpr unsigned long WATER_CYCLE_MS =
 constexpr uint8_t MAX_WATER_CYCLES_PER_WINDOW =
     4;
 
-constexpr unsigned long WATER_WINDOW_MS =
-    86400000UL;
 
+// Program state is owned by the MCU and resets on MCU restart.
+int waterProgramHours = 0;
+int lightProgramHours = 0;
+int clockDay = -1; // Python local date ordinal.
+int waterQuotaDay = -1;
+int64_t waterScheduleCursor = -1;
+void updateProgramClock();
+int clockSeconds = -1;
+unsigned long clockTickAt = 0;
 
 // ============================================================
 // AHT20
@@ -190,8 +197,6 @@ unsigned long waterCycleStartedAt =
 uint8_t waterCyclesUsed =
     0;
 
-unsigned long waterWindowStartedAt =
-    0;
 
 
 // ============================================================
@@ -235,10 +240,10 @@ DebouncedInput lightInput = {
 
 
 // ============================================================
-// Nicla Vision V4 protocol
+// Nicla Vision V7 protocol
 // ============================================================
 
-// These constants come from the already validated Vision V4.
+// The 23-byte I2C response frame remains; all V7 peers require wire revision 9.
 //
 // Do not casually change them during integration.
 
@@ -249,7 +254,7 @@ constexpr uint8_t FRAME_SOF =
     0xA5;
 
 constexpr uint8_t PROTOCOL_VERSION =
-    5;
+    9; // V7 wire revision
 
 
 constexpr uint8_t CMD_AUTH_CHALLENGE =
@@ -263,6 +268,9 @@ constexpr uint8_t CMD_AUTH_ACK =
 
 constexpr uint8_t CMD_SEND_TILE =
     0x11;
+
+constexpr uint8_t CMD_SET_DIAGNOSTIC =
+    0x13;
 
 constexpr uint8_t CMD_STATUS =
     0xF0;
@@ -365,7 +373,7 @@ bool lightRequestAllowed(
 ) {
 
     /*
-     * Future automatic lighting rules belong here.
+     * Manual lighting has no quota; updatePrograms evaluates scheduled windows.
      *
      * The physical switch does not own the relay.
      * The web page does not own the relay.
@@ -386,6 +394,7 @@ bool lightRequestAllowed(
 bool applyWaterRequest(
     bool desiredOn
 ) {
+    updateProgramClock();
 
     if (
         !waterRequestAllowed(
@@ -422,6 +431,8 @@ bool applyWaterRequest(
         HIGH
     );
 
+
+    waterCyclesUsed++;
 
     waterRelayOn =
         true;
@@ -496,40 +507,22 @@ void reportControlState() {
 // WATER daily prototype window
 // ============================================================
 
-void updateWaterWindow(
-    const unsigned long now
-) {
-
-    /*
-     * Do not reset the accounting while an irrigation cycle
-     * is physically running.
-     *
-     * If 24 hours expires during a cycle, that cycle completes
-     * first. The next loop then opens the new window.
-     */
-
-    if (waterCycleActive) {
-
-        return;
+void updateProgramClock() {
+    if (clockSeconds < 0 || clockDay < 0) return;
+    const unsigned long now = millis();
+    const unsigned long elapsed = (now - clockTickAt) / 1000UL;
+    const unsigned long seconds = clockSeconds + elapsed;
+    clockDay += seconds / 86400UL;
+    clockSeconds = seconds % 86400UL;
+    clockTickAt += elapsed * 1000UL;
+    if (waterQuotaDay < 0) {
+        waterQuotaDay = clockDay;
+    } else if (clockDay > waterQuotaDay) {
+        // A pulse spanning midnight belongs to the day it was accepted.
+        waterCyclesUsed = 0;
+        waterQuotaDay = clockDay;
     }
-
-
-    if (
-        now -
-        waterWindowStartedAt
-        <
-        WATER_WINDOW_MS
-    ) {
-
-        return;
-    }
-
-
-    waterCyclesUsed =
-        0;
-
-    waterWindowStartedAt =
-        now;
+    // Backwards clock corrections cannot grant another daily quota.
 }
 
 
@@ -573,15 +566,6 @@ void updateWaterCycle(
 
     waterCycleActive =
         false;
-
-
-    if (
-        waterCyclesUsed <
-        MAX_WATER_CYCLES_PER_WINDOW
-    ) {
-
-        waterCyclesUsed++;
-    }
 
 
     /*
@@ -635,6 +619,64 @@ void reportPhysicalControlEvent(
 }
 
 
+// Linux supplies the local date and time; MCU owns scheduling and quotas.
+int rpcSetClock(int day, int seconds) {
+    if (day <= 0 || seconds < 0 || seconds >= 86400) return 0;
+    clockDay = day;
+    clockSeconds = seconds;
+    clockTickAt = millis();
+    updateProgramClock();
+    return 1;
+}
+
+int rpcSetWaterProgram(int hours) {
+    if (hours != 0 && hours != 4 && hours != 6 && hours != 8 && hours != 12 && hours != 24) return 0;
+    if (hours != 0 && clockDay < 0) return 0;
+    updateProgramClock();
+    waterProgramHours = hours;
+    const int64_t current = int64_t(clockDay) * 86400 + clockSeconds;
+    // Selection waits for the next slot; re-selection never replays a slot.
+    if (current > waterScheduleCursor) waterScheduleCursor = current;
+    return 1;
+}
+
+int rpcSetLightProgram(int hours) {
+    if (hours != 0 && hours != 6 && hours != 8 && hours != 12 && hours != 18) return 0;
+    if (hours != 0 && clockSeconds < 0) return 0;
+    lightProgramHours = hours;
+    return 1;
+}
+
+int rpcGetWaterProgram() { return waterProgramHours; }
+int rpcGetLightProgram() { return lightProgramHours; }
+int rpcGetWaterUsed() { return waterCyclesUsed; }
+
+void updatePrograms() {
+    // Safe RPCs and program evaluation share the loop thread.
+    updateProgramClock();
+    if (clockDay < 0 || clockSeconds < 0) return;
+    const int64_t current = int64_t(clockDay) * 86400 + clockSeconds;
+    if (current > waterScheduleCursor) {
+        const int hour = clockSeconds / 3600;
+        const int64_t slot = int64_t(clockDay) * 86400 + hour * 3600;
+        const bool scheduled = waterProgramHours == 24 ? hour == 12 :
+            (waterProgramHours > 0 && hour % waterProgramHours == 0);
+        // Allow normal loop/sync latency within the scheduled minute only.
+        // No catch-up of old slots, duplicate slots, or denied requests.
+        const bool due = scheduled && slot > waterScheduleCursor && clockSeconds % 3600 < 60;
+        waterScheduleCursor = current;
+        if (due && applyWaterRequest(true)) reportControlState();
+    }
+    if (lightProgramHours > 0 && clockSeconds >= 0) {
+        const bool desired = clockSeconds >= 6 * 3600 &&
+            clockSeconds < (6 + lightProgramHours) * 3600;
+        if (desired != lightRelayOn) {
+            applyLightRequest(desired);
+            reportControlState();
+        }
+    }
+}
+
 // ============================================================
 // Linux -> MCU WATER request
 // ============================================================
@@ -642,6 +684,7 @@ void reportPhysicalControlEvent(
 int rpcRequestWater(
     int requestedState
 ) {
+    if (!requestedState) waterProgramHours = 0;
 
     const bool desiredOn =
         requestedState != 0;
@@ -673,6 +716,7 @@ int rpcRequestWater(
 int rpcRequestLight(
     int requestedState
 ) {
+    lightProgramHours = 0;
 
     const bool desiredOn =
         requestedState != 0;
@@ -894,6 +938,7 @@ void updatePhysicalControls(
          * LIGHT state.
          */
 
+        lightProgramHours = 0;
         const bool desiredOn =
             newState ==
             INPUT_ACTIVE_LEVEL;
@@ -961,7 +1006,7 @@ void updateStartupReport(
 
 
 // ============================================================
-// Vision V4 - CRC16
+// Vision V7 - CRC16
 // ============================================================
 
 uint16_t crc16_ccitt(
@@ -1013,7 +1058,7 @@ uint16_t crc16_ccitt(
 
 
 // ============================================================
-// Vision V4 - send frame
+// Vision V7 - send frame
 // ============================================================
 
 bool sendFrame(
@@ -1127,7 +1172,7 @@ bool sendFrame(
 
 
 // ============================================================
-// Vision V4 - read response
+// Vision V7 - read response
 // ============================================================
 
 bool readResponseFrame(
@@ -1188,7 +1233,7 @@ bool readResponseFrame(
 
 
 // ============================================================
-// Vision V4 - parse frame
+// Vision V7 - parse frame
 // ============================================================
 
 bool parseFrame(
@@ -1423,6 +1468,48 @@ int visionLastResult() {
 
 
 // ============================================================
+// Vision RPC - confirmed diagnostic state
+// ============================================================
+
+int visionDiagnosticEnabled() {
+
+    uint8_t cmd;
+
+    uint8_t payloadLen;
+
+    const uint8_t* payload;
+
+
+    if (
+        !lastFrameValid
+        ||
+        !parseFrame(
+            lastFrame,
+            cmd,
+            payload,
+            payloadLen
+        )
+    ) {
+
+        return -1;
+    }
+
+
+    if (
+        cmd == CMD_STATUS
+        &&
+        payloadLen >= 4
+    ) {
+
+        return payload[3] ? 1 : 0;
+    }
+
+
+    return -1;
+}
+
+
+// ============================================================
 // Vision RPC - HMAC word
 // ============================================================
 
@@ -1569,53 +1656,38 @@ bool visionAuthAck(
 // Vision RPC - SEND TILE
 // ============================================================
 
-bool visionSendTile(
-    uint32_t captureId,
-    int captureSeq,
-    int tileId,
-    int x,
-    int y
+bool visionSendTile(uint32_t captureId, int captureSeq, int tileId,
+                    int x, int y, int requestOrdinal, int reinforced, int attempt) {
+    if (!captureId || captureSeq < 0 || captureSeq > 255 || tileId < 0 || tileId >= 20 ||
+        requestOrdinal < 0 || requestOrdinal >= 20 || attempt < 0 || attempt > 5 ||
+        reinforced < 0 || reinforced > 1 || x != (tileId % 5) * 320 ||
+        y != (tileId / 5 == 3 ? 880 : (tileId / 5) * 320)) return false;
+    const uint8_t payload[13] = {
+        uint8_t(captureId >> 24), uint8_t(captureId >> 16), uint8_t(captureId >> 8), uint8_t(captureId),
+        uint8_t(captureSeq), uint8_t(tileId), uint8_t(x >> 8), uint8_t(x),
+        uint8_t(y >> 8), uint8_t(y), uint8_t(requestOrdinal), uint8_t(reinforced), uint8_t(attempt)
+    };
+    return sendFrame(CMD_SEND_TILE, payload, sizeof(payload));
+}
+
+// ============================================================
+// Vision RPC - enable/disable detailed V7 diagnostics
+// ============================================================
+
+bool visionSetDiagnostic(
+    bool enabled
 ) {
 
-    uint8_t payload[10] = {
+    const uint8_t payload[1] = {
 
-        (uint8_t)(
-            captureId >> 24
-        ),
-
-        (uint8_t)(
-            captureId >> 16
-        ),
-
-        (uint8_t)(
-            captureId >> 8
-        ),
-
-        (uint8_t)captureId,
-
-
-        (uint8_t)captureSeq,
-
-        (uint8_t)tileId,
-
-
-        (uint8_t)(
-            x >> 8
-        ),
-
-        (uint8_t)x,
-
-
-        (uint8_t)(
-            y >> 8
-        ),
-
-        (uint8_t)y
+        enabled
+        ? (uint8_t)1
+        : (uint8_t)0
     };
 
 
     return sendFrame(
-        CMD_SEND_TILE,
+        CMD_SET_DIAGNOSTIC,
         payload,
         sizeof(payload)
     );
@@ -1693,8 +1765,6 @@ void setup() {
     waterCyclesUsed =
         0;
 
-    waterWindowStartedAt =
-        millis();
 
 
     // --------------------------------------------------------
@@ -1793,32 +1863,39 @@ void setup() {
     // Control RPC
     // --------------------------------------------------------
 
-    Bridge.provide(
+    Bridge.provide_safe("set_program_clock", rpcSetClock);
+    Bridge.provide_safe("set_water_program", rpcSetWaterProgram);
+    Bridge.provide_safe("set_light_program", rpcSetLightProgram);
+    Bridge.provide_safe("get_water_program", rpcGetWaterProgram);
+    Bridge.provide_safe("get_light_program", rpcGetLightProgram);
+    Bridge.provide_safe("get_water_used", rpcGetWaterUsed);
+
+    Bridge.provide_safe(
         "request_water",
         rpcRequestWater
     );
 
 
-    Bridge.provide(
+    Bridge.provide_safe(
         "request_light",
         rpcRequestLight
     );
 
 
-    Bridge.provide(
+    Bridge.provide_safe(
         "get_water_state",
         rpcGetWaterState
     );
 
 
-    Bridge.provide(
+    Bridge.provide_safe(
         "get_light_state",
         rpcGetLightState
     );
 
 
     // --------------------------------------------------------
-    // Vision V4 RPC
+    // Vision V7 RPC
     // --------------------------------------------------------
 
     Bridge.provide(
@@ -1846,6 +1923,14 @@ void setup() {
 
 
     Bridge.provide(
+        "vision_diagnostic_enabled",
+        visionDiagnosticEnabled
+    );
+
+
+
+
+    Bridge.provide(
         "vision_auth_mac_word",
         visionAuthMacWord
     );
@@ -1866,6 +1951,12 @@ void setup() {
     Bridge.provide(
         "vision_send_tile",
         visionSendTile
+    );
+
+
+    Bridge.provide(
+        "vision_set_diagnostic",
+        visionSetDiagnostic
     );
 
 
@@ -1905,15 +1996,15 @@ void loop() {
     );
 
 
-    updateWaterWindow(
-        now
-    );
+    updateProgramClock();
 
 
     updatePhysicalControls(
         now
     );
 
+
+    updatePrograms();
 
     delay(5);
 }

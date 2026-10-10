@@ -16,6 +16,21 @@
  *
  */
 
+/*
+ * SPDX-License-Identifier: LGPL-3.0-or-later
+ *
+ * SIX_Q V7 adaptation; functional changes dated 2026-09-25.
+ * Attribution and change notice added 2026-09-27.
+ * Based on ArduinoCore-mbed 4.6.0, libraries/Camera/src/camera.h:
+ * https://github.com/arduino/ArduinoCore-mbed/blob/4.6.0/libraries/Camera/src/camera.h
+ *
+ * Added the declaration of Camera::grabFrameCropped(): DCMI crop geometry,
+ * frame-event counter, bounded wait and DMA count observed before stopping.
+ * Existing public declarations are retained.
+ * This file, including the adaptation, remains under LGPL version 3 or later.
+ * See ../THIRD_PARTY_NOTICES.md and ../LICENSES/ for provenance and terms.
+ */
+
 /**
  * @file Camera.h
  * @brief Header file for the Arduino Camera library.
@@ -484,6 +499,16 @@ class Camera {
          * @return int 0 if successful, non-zero otherwise
          */
         int grabFrame(FrameBuffer &fb, uint32_t timeout=5000);
+
+        // SIX_Q V7 isolated driver copy: the GC2145 remains at full output
+        // resolution; DCMI selects a rectangle before DMA. frameEvents must
+        // be incremented by HAL_DCMI_FrameEventCallback while this call runs.
+        // No payload is valid unless this returns zero.
+        int grabFrameCropped(FrameBuffer &fb, uint16_t x, uint16_t y,
+                             uint16_t width, uint16_t height,
+                             volatile uint32_t *frameEvents,
+                             uint32_t timeout,
+                             uint32_t *remainingBeforeStop);
 
         /**
          * @brief Enable motion detection with the specified callback.
